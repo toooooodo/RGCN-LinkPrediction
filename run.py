@@ -40,7 +40,7 @@ class Runner(object):
         self.adj_list = get_adj(self.num_nodes, self.train_data)
 
         self.model = self.get_model()
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=params.lr, weight_decay=self.p.regularization)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=params.lr)
 
     def get_data_iter(self):
         def get_data_loader(split, batch_size, shuffle=True):

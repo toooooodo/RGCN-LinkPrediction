@@ -105,7 +105,8 @@ class LinkPredict(torch.nn.Module):
         :return:
         """
         scores = self.calc_score(output, triplets)
-        return F.binary_cross_entropy_with_logits(scores, labels)
+        return F.binary_cross_entropy_with_logits(scores, labels) + self.reg_param * (
+                    torch.mean(output.pow(2)) + torch.mean(self.w_relation.pow(2)))
 
     def calc_score(self, output, triplets):
         sub = output[triplets[:, 0]]  # [triple num, dim]
@@ -114,12 +115,6 @@ class LinkPredict(torch.nn.Module):
         # DistMult: sub.T@diag(r)@obj
         score = torch.sum(sub * r * obj, dim=1)  # [triple num]
         return score
-
-    def sort_2_rank(self, score, target):
-        batch_arange = torch.arange(score.shape[0])
-        rank = 1 + torch.argsort(torch.argsort(score, dim=1, descending=True), dim=1, descending=False)[
-            batch_arange, target]
-        return rank
 
     def get_rank(self, output, subj, rel, obj, label, filtered=True):
         """
@@ -138,7 +133,8 @@ class LinkPredict(torch.nn.Module):
         batch_range = torch.arange(score.shape[0])
         if filtered:
             target_score = score[batch_range, obj]
-            score = torch.where(label.byte(), torch.zeros_like(score).to(score.device), score)  # filter out other objects with same sub&rel pair
+            score = torch.where(label.byte(), torch.zeros_like(score).to(score.device),
+                                score)  # filter out other objects with same sub&rel pair
             score[batch_range, obj] = target_score
         rank = 1 + torch.argsort(torch.argsort(score, dim=1, descending=True), dim=1, descending=False)[
             batch_range, obj]
