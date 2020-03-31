@@ -121,15 +121,25 @@ class LinkPredict(torch.nn.Module):
             batch_arange, target]
         return rank
 
-    def get_raw_rank(self, output, subj, rel, obj, test_size, batch_size):
-        n_batch = (test_size + batch_size - 1) // batch_size
-        ranks = []
-        for index in range(n_batch):
-            batch_start = index * batch_size
-            batch_subj = subj[batch_start: batch_start + batch_size]  # [batch_size]
-            batch_rel = rel[batch_start: batch_start + batch_size]  # [batch_size]
-            batch_obj = output[batch_subj] * self.w_relation[batch_rel]
-            score = batch_obj @ output.transpose(0, 1)  # [batch_size, dim] @ [dim, entity_num]
-            target = obj[batch_start: batch_start + batch_size]
-            ranks.append(self.sort_2_rank(score, target))
-        return torch.cat(ranks)
+    def get_rank(self, output, subj, rel, obj, label, filtered=True):
+        """
+        calculate ranks of predictions in a mini-batch
+        :param output: embedding of each entity: [num_ent, dim]
+        :param subj: subject id [batch-size]
+        :param rel: relation id
+        :param obj: object id
+        :param label: indicate valid tails corresponding to head and relation pairs [batch-size, num-ent]
+        :param filtered: weather filtered
+        :return: rank: [batch-size]
+        """
+        batch_obj = output[subj] * self.w_relation[rel]
+        score = batch_obj @ output.transpose(0, 1)  # [batch_size, dim] @ [dim, entity_num]
+        score = torch.sigmoid(score)
+        batch_range = torch.arange(score.shape[0])
+        if filtered:
+            target_score = score[batch_range, obj]
+            score = torch.where(label.byte(), torch.zeros_like(score).to(score.device), score)  # filter out other objects with same sub&rel pair
+            score[batch_range, obj] = target_score
+        rank = 1 + torch.argsort(torch.argsort(score, dim=1, descending=True), dim=1, descending=False)[
+            batch_range, obj]
+        return rank

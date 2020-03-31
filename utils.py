@@ -1,6 +1,23 @@
 import numpy as np
 import torch
 import dgl
+from collections import defaultdict as ddict
+
+
+def preprocess(triplets_dict):
+    sr2o = ddict(set)
+    for split in ['train', 'valid', 'test']:
+        for subj, rel, obj in triplets_dict[split]:
+            sr2o[(subj, rel)].add(obj)
+            sr2o[(obj, rel)].add(subj)  # reversed triplets
+    sr2o = {k: list(v) for k, v in sr2o.items()}  # {(subj, rel): [obj1, obj2..]...}
+    data = ddict(list)
+    for split in ['valid', 'test']:
+        for subj, rel, obj in triplets_dict[split]:
+            data[f'{split}'].append({'triple': (subj, rel, obj), 'label': sr2o[(subj, rel)]})
+            data[f'{split}'].append({'triple': (obj, rel, subj), 'label': sr2o[(obj, rel)]})
+    data = dict(data)
+    return data
 
 
 def compute_degree_norm(g: dgl.DGLGraph):
